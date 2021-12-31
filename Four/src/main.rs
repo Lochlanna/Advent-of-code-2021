@@ -121,6 +121,26 @@ impl Board {
     }
 }
 
+trait MutableRetain<T> {
+    fn retain_mut<F>(&mut self, test : F) where F: Fn(&mut T, usize, usize) -> bool;
+}
+
+impl <T> MutableRetain<T> for Vec<T> {
+    fn retain_mut<F>(&mut self, test: F) where F: Fn(&mut T, usize, usize) -> bool {
+        let mut current_index = 0;
+        let mut current_length = self.len();
+        while let Some(value) = self.get_mut(current_index) {
+            let retain = test(value, current_index, current_length);
+            if retain {
+                current_index += 1;
+            } else {
+                self.remove(current_index);
+                current_length -= 1;
+            }
+        }
+    }
+}
+
 struct Game {
     moves: Vec<u32>,
     boards: Vec<Board>
@@ -157,18 +177,33 @@ impl Game {
         Ok(Game{ moves, boards })
     }
 
-    fn play(&mut self) {
+    fn play_one(&mut self) {
         for move_value in &self.moves {
-            for (i, board) in self.boards.iter_mut().enumerate() {
+            for board in self.boards.iter_mut() {
                 let win = board.play_move(*move_value);
-                if i == 2 {
-                    println!("Move: {}\n{}\n", *move_value, board.to_string())
-                }
                 if win {
                     let unmarked_sum = board.sum_unmarked();
-                    println!("won on move {} with unmarked sum of {} and final score of {}", move_value, unmarked_sum, unmarked_sum * move_value);
+                    println!("Play 1: won on move {} with unmarked sum of {} and final score of {}", move_value, unmarked_sum, unmarked_sum * move_value);
                     return;
                 }
+            }
+        }
+    }
+    fn play_two(&mut self) {
+        for move_value in &self.moves {
+            self.boards.retain_mut(|board, _, length| {
+                let win = board.play_move(*move_value);
+                if win {
+                    if length == 1 {
+                        let unmarked_sum = board.sum_unmarked();
+                        println!("Play 2: won on move {} with unmarked sum of {} and final score of {}", move_value, unmarked_sum, unmarked_sum * move_value);
+                    }
+                    return false;
+                }
+                return true;
+            });
+            if self.boards.is_empty() {
+                return;
             }
         }
     }
@@ -196,5 +231,7 @@ fn read_chunks(file_path: &str) -> Result<Vec<Vec<String>>, ()> {
 fn main() {
     let chunks = read_chunks("input").expect("Couldn't load file");
     let mut game = Game::from_chunks(&chunks).expect("Couldn't load the game");
-    game.play();
+    let mut game2 = Game::from_chunks(&chunks).expect("Couldn't load the game");
+    game.play_one();
+    game2.play_two();
 }
