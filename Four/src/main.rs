@@ -17,12 +17,41 @@ struct Board {
 }
 
 impl Board {
+    fn sum_unmarked(&self) -> u32 {
+        let mut sum = 0;
+        for row in &self.positions {
+            for column in row {
+                if !column.marked {
+                    sum = sum + column.value;
+                }
+            }
+        }
+        sum
+    }
+    fn to_string(&self) -> String {
+        let mut board_str = String::new();
+        for row in &self.positions {
+            for (i, token) in row.iter().enumerate() {
+                if i != 0 {
+                    board_str.push(',')
+                }
+                if token.marked {
+                    board_str.push('X')
+                } else {
+                    board_str.push_str(token.value.to_string().as_str());
+                }
+            }
+            board_str.push('\n');
+        }
+        board_str
+    }
+
     fn from_string_list(lines: &Vec<String>) -> Result<Board, ()> {
         let mut board = Board{ positions: vec![], value_positions: Default::default() };
         for (row_index, line) in lines.iter().enumerate() {
-            let row_values = line.split(" ");
+            let row_values = line.split_whitespace().collect::<Vec<&str>>();
             let mut row = Vec::new();
-            for (col_index, value_str) in row_values.enumerate() {
+            for (col_index, value_str) in row_values.iter().enumerate() {
                 match value_str.parse::<u32>() {
                     Ok(value) => {
                         row.push(Token{ value, marked: false });
@@ -45,36 +74,50 @@ impl Board {
     }
 
     fn play_move(&mut self, move_value: u32) -> bool {
+        let mut r_val = false;
         match self.value_positions.get(&move_value) {
-            None => return false,
+            None => r_val = false,
             Some(positions) => {
                 for pos in positions {
                     let row = match self.positions.get_mut(pos.row) {
-                        None => return false,
+                        None => {
+                            println!("Error getting the row by index {}", pos.row);
+                            return false;
+                        },
                         Some(r) => r
                     };
                     match row.get_mut(pos.col) {
-                        None => return false,
+                        None => {
+                            println!("Error getting the column {}", pos.col);
+                            return false;
+                        },
                         Some(token) => {
                             token.marked = true;
                         }
                     }
                     let mut row_complete = true;
                     for pos in row {
-                        if !pos.marked {
-                            row_complete = false;
-                        }
+                        row_complete &= pos.marked
                     }
                     if row_complete {
-                        return true;
+                        r_val = true;
+                    }
+                    let mut column_complete = true;
+                    for row in &self.positions {
+                        match row.get(pos.col) {
+                            None => continue,
+                            Some(col_val) => {
+                                column_complete &= col_val.marked;
+                            }
+                        }
+                    }
+                    if column_complete {
+                        r_val = true;
                     }
                 }
             }
         }
-        for row in self.positions {
-
-        }
-        false
+        r_val
     }
 }
 
@@ -85,7 +128,8 @@ struct Game {
 
 impl Game {
     fn from_chunks(chunks: &Vec<Vec<String>>) -> Result<Game, ()> {
-        let move_chunk = match chunks.first() {
+        let mut chunk_iter = chunks.iter();
+        let move_chunk = match chunk_iter.next() {
             None => return Err(()),
             Some(mc) => mc
         };
@@ -103,8 +147,7 @@ impl Game {
             }
         }
         let mut boards = Vec::new();
-        let mut chunk_iter = chunks.iter();
-        chunk_iter.next(); //skip the move chunk
+
         for chunk in chunk_iter {
             match Board::from_string_list(chunk) {
                 Ok(b) => boards.push(b),
@@ -115,9 +158,17 @@ impl Game {
     }
 
     fn play(&mut self) {
-        for move_value in self.moves {
-            for board in &mut self.boards {
-                let win = board.play_move(value);
+        for move_value in &self.moves {
+            for (i, board) in self.boards.iter_mut().enumerate() {
+                let win = board.play_move(*move_value);
+                if i == 2 {
+                    println!("Move: {}\n{}\n", *move_value, board.to_string())
+                }
+                if win {
+                    let unmarked_sum = board.sum_unmarked();
+                    println!("won on move {} with unmarked sum of {} and final score of {}", move_value, unmarked_sum, unmarked_sum * move_value);
+                    return;
+                }
             }
         }
     }
@@ -144,6 +195,6 @@ fn read_chunks(file_path: &str) -> Result<Vec<Vec<String>>, ()> {
 
 fn main() {
     let chunks = read_chunks("input").expect("Couldn't load file");
-    let game = Game::from_chunks(&chunks).expect("Couldn't load the game");
-    println!("Hello, world!");
+    let mut game = Game::from_chunks(&chunks).expect("Couldn't load the game");
+    game.play();
 }
