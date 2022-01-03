@@ -39,13 +39,13 @@ fn read_input(filename: &str) -> Vec<Problem>{
 }
 
 fn num_match(a: &String, b: &String) -> usize {
-    let mut matching_chars = HashSet::new();
+    let mut matching_chars = 0;
     for a_char in a.chars() {
         if b.contains(a_char) {
-            matching_chars.insert(a_char);
+            matching_chars += 1;
         }
     }
-    matching_chars.len()
+    matching_chars
 }
 
 impl Problem {
@@ -62,7 +62,7 @@ impl Problem {
         count
     }
 
-    fn decode(&self) -> Vec<u32> {
+    fn decode(&self) -> u32 {
         let mut known_examples = HashMap::new();
         for value in &self.input_values {
             match value.len() {
@@ -83,7 +83,7 @@ impl Problem {
             panic!("We can't solve this :(");
         }
         let mut decoded = Vec::new();
-        for out_val in &self.output_values {
+        for out_val in self.output_values.iter().rev() {
             match out_val.len() {
                 2 => decoded.push(1),
                 3 => decoded.push(7),
@@ -110,7 +110,11 @@ impl Problem {
                 _ => {}
             }
         }
-        decoded
+        let mut decoded_output:u32 = 0;
+        for (i, decoded_value) in decoded.iter().enumerate() {
+            decoded_output += *decoded_value as u32 * (10u32.pow(i as u32));
+        }
+        decoded_output
     }
 
 }
@@ -121,15 +125,8 @@ fn main() {
     let mut count = 0;
     let mut output_sum = 0;
     for problem in &problems {
-        let mut decoded = problem.decode();
-        decoded.reverse();
-        let mut output_number:u32 = 0;
-        for (i, decoded_value) in decoded.iter().enumerate() {
-            let v = *decoded_value;
-            output_number += *decoded_value as u32 * (10u32.pow(i as u32));
-        }
-        output_sum += output_number;
+        count += problem.count_unique_nums_output();
+        output_sum += problem.decode();
     }
-
     println!("There are {} instances of 1, 4, 7 or 8. Output sum is {}", count, output_sum);
 }
