@@ -66,25 +66,20 @@ impl Problem {
         let mut known_examples = HashMap::new();
         for value in &self.input_values {
             match value.len() {
+                // We only care about these two because with these we can figure out the others
                 2 => {
                     known_examples.insert(1, value.clone());
-                },
-                3 => {
-                    known_examples.insert(7, value.clone());
                 },
                 4 => {
                     known_examples.insert(4, value.clone());
                 },
-                7 => {
-                    known_examples.insert(8, value.clone());
-                },
                 _ => {}
             }
-            if known_examples.len() == 4 {
+            if known_examples.len() == 2 {
                 break;
             }
         }
-        if known_examples.len() != 4 {
+        if known_examples.len() != 2 {
             panic!("We can't solve this :(");
         }
         let mut decoded = Vec::new();
