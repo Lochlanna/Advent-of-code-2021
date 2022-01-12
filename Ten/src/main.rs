@@ -91,6 +91,6 @@ fn main() {
         }
     }
     repair_scores.sort();
-    let repair_score = repair_scores[(repair_scores.len() as f32/2f32).floor() as usize];
+    let repair_score = repair_scores[repair_scores.len()/2];
     println!("The corrupt score is {}, repair score is {}", corrupt_score, repair_score);
 }
