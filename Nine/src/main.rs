@@ -195,9 +195,9 @@ fn read_input(filename: &str) -> Option<Grid> {
         }
     };
     let mut grid = Grid::new();
-    for (y, line) in file_contents.lines().enumerate() {
+    for (_, line) in file_contents.lines().enumerate() {
         let mut row = Vec::new();
-        for (x, value) in line.chars().enumerate() {
+        for (_, value) in line.chars().enumerate() {
             let parsed = match value.to_digit(10) {
                 Some(p) => p,
                 None => {
