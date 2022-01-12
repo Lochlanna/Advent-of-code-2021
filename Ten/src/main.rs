@@ -12,8 +12,8 @@ fn read_input(filename:&str) -> Vec<String> {
     lines
 }
 
-fn get_opposite(c: &char) -> char {
-    return match *c {
+fn get_opposite(c: char) -> char {
+    return match c {
         '{' => '}',
         '}' => '{',
         '(' => ')',
@@ -40,7 +40,7 @@ fn get_line_score(line: &String) -> Result<u64,u64> {
                 match opener {
                     None => return Err(char_to_corrupt_score(c)),
                     Some(opener) => {
-                        if opener != get_opposite(&c) {
+                        if opener != get_opposite(c) {
                             return Err(char_to_corrupt_score(c));
                         }
                     }
@@ -53,7 +53,7 @@ fn get_line_score(line: &String) -> Result<u64,u64> {
     }
     let mut repair_score:u64 = 0;
     while let Some(opener) = openers.pop_front() {
-        let opposite = get_opposite(&opener);
+        let opposite = get_opposite(opener);
         repair_score = repair_score * 5;
         repair_score += match opposite {
             ')' => 1,
