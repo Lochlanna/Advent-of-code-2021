@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::DefaultHasher;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
-use std::ptr::hash;
 use std::str::Split;
 use std::time::Instant;
 
@@ -41,33 +40,36 @@ struct Path {
 
 impl Path {
 
-    fn new(double_small_allowed: bool) -> Path {
-        Path{
-            path: vec![],
+    fn new(first_node: &Node, double_small_allowed: bool) -> Path {
+        let mut path = Path{
+            path: vec![first_node.hash],
             nodes_in_path: Default::default(),
             double_small: 0,
             double_small_set: false,
             double_small_allowed
-        }
+        };
+        path.nodes_in_path.insert(first_node.hash);
+        path
     }
-    fn append_node(&mut self, node: &Node) -> Result<(), ()> {
+    fn append_node_to_clone(&self, node: &Node) -> Result<Self, ()> {
+        let mut cloned;
         if !string_is_upper(node.name.as_str()) && self.node_in_path(node.hash) {
             if !node.is_start && self.double_small_allowed && !self.double_small_set {
-                self.double_small = node.hash;
-                self.double_small_set = true;
+                cloned = self.clone();
+                cloned.double_small = node.hash;
+                cloned.double_small_set = true;
             } else {
                 return Err(());
             }
+        } else {
+            cloned = self.clone();
         }
-        self.path.push(node.hash);
-        self.nodes_in_path.insert(node.hash);
-        Ok(())
+        cloned.path.push(node.hash);
+        cloned.nodes_in_path.insert(node.hash);
+        Ok(cloned)
     }
     fn node_in_path(&self, node_hash: u64) -> bool {
         self.nodes_in_path.contains(&node_hash)
-    }
-    fn is_empty(&self) -> bool {
-        self.path.is_empty()
     }
 }
 
@@ -97,18 +99,6 @@ fn hash_from_path_part(part_iter: &mut Split<&str>) -> Option<(u64, String)> {
 }
 
 impl Map {
-
-    fn dehash_path(&self, path: &Path) -> Result<Vec<String>, ()> {
-        let mut dehashed = Vec::new();
-        for node_hash in &path.path {
-            if let Some(node) = self.nodes.get(node_hash) {
-                dehashed.push(node.name.clone());
-            } else {
-                return Err(());
-            }
-        }
-        Ok(dehashed)
-    }
     fn read_path(&mut self, path: &str) {
         let mut parts = path.split("-");
         let node_a = match hash_from_path_part(&mut parts) {
@@ -142,22 +132,23 @@ impl Map {
         };
     }
 
-    fn traverse_from_node(&self, node_hash: u64, mut path: Path, end_hash: u64) -> Option<Vec<Path>> {
-        let node = match self.nodes.get(&node_hash) {
-            None => panic!("couldn't find node {}", node_hash),
-            Some(node) => node
-        };
-        if path.append_node(node).is_err() {
-            //We are not allowed to append this node to the path so this path is a dead end
-            return None;
-        }
-        if node_hash == end_hash {
-            //we have found the end!
+    fn traverse_from_node(&self, node: &Node, path: Path, end_hash: u64) -> Option<Vec<Path>> {
+        if node.hash == end_hash {
             return Some(vec![path]);
         }
         let mut paths = Vec::new();
-        for connected_node in &node.connections {
-            if let Some(mut new_paths) = self.traverse_from_node(*connected_node, path.clone(), end_hash) {
+        for connected_node_hash in &node.connections {
+            let connected_node = match self.nodes.get(&connected_node_hash) {
+                None => panic!("Connected node doesn't exist"),
+                Some(connected_node) => connected_node
+            };
+            let new_path = if let Ok(new_path) = path.append_node_to_clone(connected_node) {
+                //We are not allowed to append this node to the path so this path is a dead end
+                new_path
+            } else {
+                continue;
+            };
+            if let Some(mut new_paths) = self.traverse_from_node(connected_node, new_path, end_hash) {
                 paths.append(&mut new_paths);
             }
         }
@@ -184,7 +175,8 @@ fn do_problem(double_small_allowed: bool) -> usize{
     let map = read_input("input");
     let start_hash = default_hash("start");
     let end_hash = default_hash("end");
-    let paths_to_end = match map.traverse_from_node(start_hash, Path::new(double_small_allowed), end_hash) {
+    let start_node = map.nodes.get(&start_hash).expect("couldn't find the start node");
+    let paths_to_end = match map.traverse_from_node(start_node, Path::new(start_node, double_small_allowed), end_hash) {
         None => return 0,
         Some(paths) => paths
     };
