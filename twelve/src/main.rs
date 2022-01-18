@@ -143,7 +143,6 @@ impl Map {
                 Some(connected_node) => connected_node
             };
             if let Some(new_path) = path.append_node_to_clone(connected_node) {
-                //We are not allowed to append this node to the path so this path is a dead end
                 if let Some(mut new_paths) = self.traverse_from_node(connected_node, new_path, end_hash) {
                     paths.append(&mut new_paths);
                 }
