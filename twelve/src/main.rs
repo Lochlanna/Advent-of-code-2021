@@ -51,7 +51,7 @@ impl Path {
         path.nodes_in_path.insert(first_node.hash);
         path
     }
-    fn append_node_to_clone(&self, node: &Node) -> Result<Self, ()> {
+    fn append_node_to_clone(&self, node: &Node) -> Option<Self> {
         let mut cloned;
         if !string_is_upper(node.name.as_str()) && self.node_in_path(node.hash) {
             if !node.is_start && self.double_small_allowed && !self.double_small_set {
@@ -59,14 +59,14 @@ impl Path {
                 cloned.double_small = node.hash;
                 cloned.double_small_set = true;
             } else {
-                return Err(());
+                return None;
             }
         } else {
             cloned = self.clone();
         }
         cloned.path.push(node.hash);
         cloned.nodes_in_path.insert(node.hash);
-        Ok(cloned)
+        Some(cloned)
     }
     fn node_in_path(&self, node_hash: u64) -> bool {
         self.nodes_in_path.contains(&node_hash)
@@ -142,14 +142,11 @@ impl Map {
                 None => panic!("Connected node doesn't exist"),
                 Some(connected_node) => connected_node
             };
-            let new_path = if let Ok(new_path) = path.append_node_to_clone(connected_node) {
+            if let Some(new_path) = path.append_node_to_clone(connected_node) {
                 //We are not allowed to append this node to the path so this path is a dead end
-                new_path
-            } else {
-                continue;
-            };
-            if let Some(mut new_paths) = self.traverse_from_node(connected_node, new_path, end_hash) {
-                paths.append(&mut new_paths);
+                if let Some(mut new_paths) = self.traverse_from_node(connected_node, new_path, end_hash) {
+                    paths.append(&mut new_paths);
+                }
             }
         }
         if paths.is_empty() {
