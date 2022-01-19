@@ -2,80 +2,72 @@ use std::collections::BTreeMap;
 use std::env;
 use std::time::Instant;
 
-type PairMap = BTreeMap<char, BTreeMap<char,char>>;
-type PairCountMap = BTreeMap<char, BTreeMap<char,usize>>;
+type PairMap = BTreeMap<char, BTreeMap<char, char>>;
+type PairCountMap = BTreeMap<char, BTreeMap<char, usize>>;
 
 fn read_input(filename: &str) -> (String, PairMap) {
     let file_contents = std::fs::read_to_string(filename).expect("couldn't read file contents");
-    let mut line_iter = file_contents.lines();
-
-    let template = line_iter.next().expect("couldn't read the template string");
-
-    line_iter.next();
-
+    let mut template = String::new();
     let mut pair_mapping: PairMap = BTreeMap::new();
-    for line in line_iter.by_ref() {
-        let parts: Vec<&str> = line.split(" -> ").collect();
-        if parts.len() != 2 {
-            panic!("couldn't parse pair mapping line {}", line);
+    for (i, line) in file_contents.lines().enumerate() {
+        match i {
+            0 => template.push_str(line),
+            1 => {},
+            _ => {
+                if line.len() != 7 {
+                    panic!("Couldn't parse mapping line {}", line);
+                }
+                let mut first_char = '.';
+                let mut second_char = '.';
+                let mut map_char = '.';
+                for (i, char) in line.chars().enumerate() {
+                    match i {
+                        0 => first_char = char,
+                        1 => second_char = char,
+                        6 => map_char = char,
+                        _ => {}
+                    }
+                }
+                pair_mapping.entry(first_char).or_insert_with(BTreeMap::new).insert(second_char,map_char);
+            }
         }
-        let mut key_chars = parts[0].chars();
-        let first_char = key_chars.next().expect("couldn't get first key char");
-        let second_char = key_chars.next().expect("couldn't get second key char");
-        let map_char = parts[1].chars().next().expect("couldn't get the mapped part");
-        let sub_tree = pair_mapping.entry(first_char).or_insert_with(BTreeMap::new);
-        sub_tree.insert(second_char, map_char);
     }
-    (String::from(template), pair_mapping)
+    (template, pair_mapping)
 }
 
 fn count_pairs(str: &str) -> PairCountMap {
-    let mut pair_count:PairCountMap = BTreeMap::new();
-    let chars:Vec<char> = str.chars().collect();
+    let mut pair_count: PairCountMap = BTreeMap::new();
+    let chars: Vec<char> = str.chars().collect();
     for pair in chars.windows(2) {
         let sub_tree = pair_count.entry(pair[0]).or_insert_with(BTreeMap::new);
-        let current_count = sub_tree.entry(pair[1]).or_insert(0);
-        *current_count += 1;
+        sub_tree.entry(pair[1]).and_modify(|c| *c += 1).or_insert(1);
     }
     pair_count
 }
 
 fn count_letters(str: &str) -> BTreeMap<char, usize> {
-    let mut letter_count:BTreeMap<char, usize> = BTreeMap::new();
+    let mut letter_count: BTreeMap<char, usize> = BTreeMap::new();
     for letter in str.chars() {
-        let count = letter_count.entry(letter).or_insert(0);
-        *count += 1;
+        letter_count.entry(letter).and_modify(|c| *c += 1).or_insert(1);
     }
     letter_count
 }
 
-fn get_from_pair_map(char_a:&char, char_b:&char, pair_map: &PairMap) -> Option<char> {
-    match pair_map.get(char_a) {
-        None => None,
-        Some(sub_tree) => {
-            sub_tree.get(char_b).copied()
-        }
-    }
-}
-
-fn insert_into_pair_count_map(char_a:char, char_b:char, count: usize, pair_count:&mut PairCountMap) {
+fn insert_into_pair_count_map(char_a: char, char_b: char, count: usize, pair_count: &mut PairCountMap) {
     let subtree = pair_count.entry(char_a).or_insert_with(BTreeMap::new);
-    let current_count = subtree.entry(char_b).or_insert(0);
-    *current_count += count;
+    subtree.entry(char_b).and_modify(|c| *c += count).or_insert(count);
 }
 
 fn process_pairs(pair_count: PairCountMap, letter_count: &mut BTreeMap<char, usize>, pair_map: &PairMap) -> PairCountMap {
-    let mut new_pair_count:PairCountMap = BTreeMap::new();
+    let mut new_pair_count: PairCountMap = BTreeMap::new();
     for (char_a, sub_tree) in pair_count {
-        for (char_b, old_count) in sub_tree {
-            let mapped_char = get_from_pair_map(&char_a, &char_b, pair_map).expect("pair doesn't exist in mapping");
-            let count = letter_count.entry(mapped_char).or_insert(0);
-            *count += old_count;
-            insert_into_pair_count_map(char_a, mapped_char, old_count, &mut new_pair_count);
-            insert_into_pair_count_map(mapped_char, char_b, old_count, &mut new_pair_count);
+        for (char_b, count) in sub_tree {
+            let mapped_char = *pair_map.get(&char_a).and_then(|st| st.get(&char_b)).expect("pair doesn't exist in mapping");
+            letter_count.entry(mapped_char).and_modify(|c| *c += count).or_insert(count);
+            insert_into_pair_count_map(char_a, mapped_char, count, &mut new_pair_count);
+            insert_into_pair_count_map(mapped_char, char_b, count, &mut new_pair_count);
         }
     }
-
     new_pair_count
 }
 
