@@ -23,16 +23,8 @@ fn read_input(filename: &str) -> (String, PairMap) {
         let first_char = key_chars.next().expect("couldn't get first key char");
         let second_char = key_chars.next().expect("couldn't get second key char");
         let map_char = parts[1].chars().next().expect("couldn't get the mapped part");
-        match pair_mapping.get_mut(&first_char) {
-            None => {
-                let mut sub_map = BTreeMap::new();
-                sub_map.insert(second_char, map_char);
-                pair_mapping.insert(first_char, sub_map);
-            }
-            Some(sub_map) => {
-                sub_map.insert(second_char, map_char);
-            }
-        }
+        let sub_tree = pair_mapping.entry(first_char).or_insert_with(BTreeMap::new);
+        sub_tree.insert(second_char, map_char);
     }
     (String::from(template), pair_mapping)
 }
@@ -41,21 +33,9 @@ fn count_pairs(str: &str) -> PairCountMap {
     let mut pair_count:PairCountMap = BTreeMap::new();
     let chars:Vec<char> = str.chars().collect();
     for pair in chars.windows(2) {
-        match pair_count.get_mut(&pair[0]) {
-            None => {
-                let mut sub_tree = BTreeMap::new();
-                sub_tree.insert(pair[1], 1);
-                pair_count.insert(pair[0], sub_tree);
-            }
-            Some(sub_tree) => {
-                match sub_tree.get_mut(&pair[1]) {
-                    None => {
-                        sub_tree.insert(pair[1], 1);
-                    }
-                    Some(count) => *count += 1
-                }
-            }
-        }
+        let sub_tree = pair_count.entry(pair[0]).or_insert_with(BTreeMap::new);
+        let current_count = sub_tree.entry(pair[1]).or_insert(0);
+        *current_count += 1;
     }
     pair_count
 }
@@ -63,12 +43,8 @@ fn count_pairs(str: &str) -> PairCountMap {
 fn count_letters(str: &str) -> BTreeMap<char, usize> {
     let mut letter_count:BTreeMap<char, usize> = BTreeMap::new();
     for letter in str.chars() {
-        match letter_count.get_mut(&letter) {
-            None => {
-                letter_count.insert(letter, 1);
-            },
-            Some(count) => *count += 1
-        };
+        let count = letter_count.entry(letter).or_insert(0);
+        *count += 1;
     }
     letter_count
 }
@@ -83,35 +59,18 @@ fn get_from_pair_map(char_a:&char, char_b:&char, pair_map: &PairMap) -> Option<c
 }
 
 fn insert_into_pair_count_map(char_a:char, char_b:char, count: usize, pair_count:&mut PairCountMap) {
-    match pair_count.get_mut(&char_a)  {
-        None => {
-            let mut sub_tree = BTreeMap::new();
-            sub_tree.insert(char_b, count);
-            pair_count.insert(char_a, sub_tree);
-        }
-        Some(sub_tree) => {
-            match sub_tree.get_mut(&char_b) {
-                None => {
-                    sub_tree.insert(char_b, count);
-                }
-                Some(old_count) => *old_count += count
-            }
-        }
-    }
+    let subtree = pair_count.entry(char_a).or_insert_with(BTreeMap::new);
+    let current_count = subtree.entry(char_b).or_insert(0);
+    *current_count += count;
 }
 
 fn process_pairs(pair_count: PairCountMap, letter_count: &mut BTreeMap<char, usize>, pair_map: &PairMap) -> PairCountMap {
     let mut new_pair_count:PairCountMap = BTreeMap::new();
-
     for (char_a, sub_tree) in pair_count {
         for (char_b, old_count) in sub_tree {
             let mapped_char = get_from_pair_map(&char_a, &char_b, pair_map).expect("pair doesn't exist in mapping");
-            match letter_count.get_mut(&mapped_char) {
-                None => {
-                    letter_count.insert(mapped_char, old_count);
-                }
-                Some(count) => *count += old_count
-            }
+            let count = letter_count.entry(mapped_char).or_insert(0);
+            *count += old_count;
             insert_into_pair_count_map(char_a, mapped_char, old_count, &mut new_pair_count);
             insert_into_pair_count_map(mapped_char, char_b, old_count, &mut new_pair_count);
         }
