@@ -1,22 +1,8 @@
 use std::fmt::{Display, Formatter};
+use std::time::Instant;
 use crate::table::{Table, TableCell, TableIterator, TableIteratorType, IteratorDirection};
 
 mod table;
-
-trait Foldable {
-    /// Folds the structure around the provided x axis
-    /// The structure will be folded left to right around the axis
-    /// The line along which the struct is folded will no longer exist after this operation
-    /// The original table is modified to perform this operation
-    ///
-    /// # Arguments
-    ///
-    /// * `x`: The index of the column to fold around. This column will no longer exist after the function is complete
-    ///
-    /// returns: ()
-    fn fold_x(&mut self, x:usize);
-    fn fold_y(&mut self, y:usize);
-}
 
 impl<T: Copy> Table<T> {
     fn fold(&mut self, mut src_iter: TableIterator, mut dst_iter: TableIterator) {
@@ -31,7 +17,7 @@ impl<T: Copy> Table<T> {
                             }
                             continue; // We have skipped here so we need to go back to the start of the loop
                         },
-                        TableCell::Some(src_value) => src_value.clone()
+                        TableCell::Some(src_value) => *src_value
                     }
                 }
             };
@@ -40,25 +26,7 @@ impl<T: Copy> Table<T> {
             }
         }
     }
-}
-
-impl<T> Table<T> {
-    fn count_non_null_cells(&self) -> usize {
-        let mut non_null:usize = 0;
-        for cell in self.cell_iterator() {
-            match cell {
-                TableCell::Null => {}
-                TableCell::Some(_) => non_null += 1
-            }
-        }
-        non_null
-    }
-}
-
-impl<T: Copy> Foldable for table::Table<T> {
-
     fn fold_x(&mut self, x: usize) {
-        let n_columns = self.num_columns();
         if x + 1 >= self.num_columns() {
             // Can't fold along a row that doesn't exist or the last row
             return;
@@ -81,6 +49,17 @@ impl<T: Copy> Foldable for table::Table<T> {
         self.fold(src_iter, dst_iter);
         self.truncate_by_row(y);
     }
+
+    fn count_non_null_cells(&self) -> usize {
+        let mut non_null:usize = 0;
+        for cell in self.cell_iterator() {
+            match cell {
+                TableCell::Null => {}
+                TableCell::Some(_) => non_null += 1
+            }
+        }
+        non_null
+    }
 }
 
 impl Display for table::Table<bool> {
@@ -89,8 +68,8 @@ impl Display for table::Table<bool> {
         for row in self.row_iterator() {
             for column in row {
                 match column {
-                    TableCell::Null => table_string.push('.'),
-                    TableCell::Some(_) => {table_string.push('#')}
+                    TableCell::Null => table_string.push(' '),
+                    TableCell::Some(_) => {table_string.push('█')}
                 }
             }
             table_string.push('\n');
@@ -151,6 +130,7 @@ fn read_input(filename: &str) -> (Table<bool>, Vec<Fold>) {
 }
 
 fn main() {
+    let now = Instant::now();
     let (mut table, instructions) = read_input("input");
     let mut dots_after_first = 0;
     let mut first = true;
@@ -166,4 +146,5 @@ fn main() {
 
     }
     println!("After the first fold there are {} dots. After all the folds there are {} dots which looks like\n{}", dots_after_first, table.count_non_null_cells(), table);
+    println!("time taken was {} seconds", now.elapsed().as_secs_f64());
 }

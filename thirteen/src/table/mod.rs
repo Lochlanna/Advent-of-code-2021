@@ -177,10 +177,10 @@ impl TableIterator {
             };
         }
         let current_index = self.current_row * table.row_size + self.current_col;
-        self.current_row += 1;
         if current_index > table.len() {
             return None;
         }
+        self.current_row += 1;
         Some(current_index)
     }
 
@@ -199,10 +199,10 @@ impl TableIterator {
             }
         }
         let current_index = self.current_row * table.row_size + self.current_col;
-        self.current_col += 1;
         if current_index > table.len() {
             return None;
         }
+        self.current_col += 1;
         Some(current_index)
     }
 
