@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::DefaultHasher;
+use std::env;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::str::Split;
@@ -138,7 +139,7 @@ impl Map {
         }
         let mut paths = Vec::new();
         for connected_node_hash in &node.connections {
-            let connected_node = match self.nodes.get(&connected_node_hash) {
+            let connected_node = match self.nodes.get(connected_node_hash) {
                 None => panic!("Connected node doesn't exist"),
                 Some(connected_node) => connected_node
             };
@@ -168,7 +169,8 @@ fn read_input(filename: &str) -> Map {
 }
 
 fn do_problem(double_small_allowed: bool) -> usize{
-    let map = read_input("input");
+    let args: Vec<String> = env::args().collect();
+    let map = read_input(if args.len() < 2 {"input"} else {args[1].as_str()});
     let start_hash = default_hash("start");
     let end_hash = default_hash("end");
     let start_node = map.nodes.get(&start_hash).expect("couldn't find the start node");

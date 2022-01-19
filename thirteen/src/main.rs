@@ -1,3 +1,4 @@
+use std::env;
 use std::fmt::{Display, Formatter};
 use std::time::Instant;
 use crate::table::{Table, TableCell, TableIterator, TableIteratorType, IteratorDirection};
@@ -130,8 +131,9 @@ fn read_input(filename: &str) -> (Table<bool>, Vec<Fold>) {
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
     let now = Instant::now();
-    let (mut table, instructions) = read_input("input");
+    let (mut table, instructions) = read_input(if args.len() < 2 {"input"} else {args[1].as_str()});
     let mut dots_after_first = 0;
     let mut first = true;
     for instruction in instructions {
