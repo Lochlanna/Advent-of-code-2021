@@ -105,8 +105,8 @@ fn read_input(filename: &str) -> Table<bool> {
         let x = parts[0].parse::<usize>().expect("Couldn't parse point while reading input");
         let y = parts[1].parse::<usize>().expect("Couldn't parse point while reading input");
         points.push((x,y));
-        max_x = std::cmp::max(x, max_x);
-        max_y = std::cmp::max(y, max_y);
+        max_x = std::cmp::max(x+1, max_x);
+        max_y = std::cmp::max(y+1, max_y);
     }
     let mut table = Table::with_capacity(max_x, max_x * max_y);
     for (x, y) in points {
