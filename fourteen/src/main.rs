@@ -1,23 +1,17 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::env;
 use std::time::Instant;
 
 
-fn char_vec_to_string(chars: &[char]) -> String {
-    chars.iter().collect()
-}
-
-
-fn read_input(filename: &str) -> (Vec<char>, BTreeMap<char, BTreeMap<char, char>>) {
+fn read_input(filename: &str) -> (String, HashMap<[char;2], char>) {
     let file_contents = std::fs::read_to_string(filename).expect("coudln't read file contents");
     let mut line_iter = file_contents.lines();
 
-    let template_str = line_iter.next().expect("couldn't read the template string");
-    let template: Vec<char> = template_str.chars().collect();
+    let template = line_iter.next().expect("couldn't read the template string");
 
     line_iter.next();
 
-    let mut pair_mapping: BTreeMap<char, BTreeMap<char, char>> = BTreeMap::new();
+    let mut pair_mapping: HashMap<[char;2], char> = HashMap::new();
     for line in line_iter.by_ref() {
         let parts: Vec<&str> = line.split(" -> ").collect();
         if parts.len() != 2 {
@@ -27,94 +21,97 @@ fn read_input(filename: &str) -> (Vec<char>, BTreeMap<char, BTreeMap<char, char>
         let first_char = key_chars.next().expect("couldn't get first key char");
         let second_char = key_chars.next().expect("couldn't get second key char");
         let map_char = parts[1].chars().next().expect("couldn't get the mapped part");
-        match pair_mapping.get_mut(&first_char) {
+        pair_mapping.insert([first_char, second_char], map_char);
+    }
+    (String::from(template), pair_mapping)
+}
+
+fn count_pairs(str: &str, pair_map: &HashMap<[char;2], char>) -> HashMap<[char; 2], usize> {
+    let mut pair_count:HashMap<[char;2], usize> = HashMap::with_capacity(pair_map.len());
+    let chars:Vec<char> = str.chars().collect();
+    for pair in chars.windows(2) {
+        match pair_count.get_mut(pair) {
             None => {
-                //doesn't exist yet so create a new one
-                let mut new_tree = BTreeMap::new();
-                new_tree.insert(second_char, map_char);
-                pair_mapping.insert(first_char, new_tree);
-            }
-            Some(sub_tree) => {
-                sub_tree.insert(second_char, map_char);
-            }
+                pair_count.insert(pair.try_into().expect("Slice with an incorrect length"), 1);
+            },
+            Some(count) => *count += 1
         }
     }
-
-    (template, pair_mapping)
+    pair_count
 }
 
-fn get_mapped_value_from_slice(key: &[char], pair_mapping: &BTreeMap<char, BTreeMap<char, char>>) -> Option<char> {
-    if key.len() != 2 {
-        return None
-    }
-    match pair_mapping.get(&key[0]) {
-        None => None,
-        Some(sub_tree) => {
-            sub_tree.get(&key[1]).copied()
-        }
-    }
-}
-
-fn process_pairs(polymer: &[char], pair_mapping: &BTreeMap<char, BTreeMap<char, char>>) -> Vec<char> {
-    let mut new_polymer = Vec::with_capacity(polymer.len() * 2 - 1);
-    let mut first = true;
-    for pair in polymer.windows(2) {
-        let new_char = get_mapped_value_from_slice(pair, pair_mapping).expect("couldn't get mapping from pair to char");
-        if first {
-            new_polymer.push(pair[0]);
-            first = false;
-        }
-        new_polymer.push(new_char);
-        new_polymer.push(pair[1]);
-    }
-    new_polymer
-}
-
-fn min_max_occurrences(polymer: &[char]) -> Option<((char, usize), (char, usize))> {
-    if polymer.is_empty() {
-        return None;
-    }
-    let mut table:HashMap<char, usize> = HashMap::with_capacity(26);
-    for c in polymer {
-        match table.get_mut(c) {
+fn count_letters(str: &str) -> HashMap<char, usize> {
+    let mut letter_count:HashMap<char, usize> = HashMap::new();
+    for letter in str.chars() {
+        match letter_count.get_mut(&letter) {
             None => {
-                table.insert(*c, 1);
-            }
-            Some(entry) => *entry += 1
-        }
+                letter_count.insert(letter, 1);
+            },
+            Some(count) => *count += 1
+        };
     }
-    let mut max = ('.', 0usize);
-    let mut min = ('.', usize::MAX);
-    for (c, count) in table {
-        if count > max.1 {
-            max.0 = c;
-            max.1 = count;
-        }
-        if count < min.1 {
-            min.0 = c;
-            min.1 = count;
-        }
-    }
-    Some((min, max))
+    letter_count
 }
 
+fn process_pairs(pair_count: HashMap<[char; 2], usize>, letter_count: &mut HashMap<char, usize>, pair_map: &HashMap<[char;2], char>) -> HashMap<[char; 2], usize> {
+    let mut new_pair_count = HashMap::with_capacity(pair_count.len());
+
+    for (pair, old_count) in pair_count {
+        let mapped_char = pair_map.get(&pair).expect("pair doesn't exist in mapping");
+        match letter_count.get_mut(mapped_char) {
+            None => {
+                letter_count.insert(*mapped_char, old_count);
+            }
+            Some(count) => *count += old_count
+        }
+
+        let pair_a = [pair[0], *mapped_char];
+        match new_pair_count.get_mut(&pair_a)  {
+            None => {
+                new_pair_count.insert(pair_a, old_count);
+            }
+            Some(count) => *count += old_count
+        }
+        let pair_b = [*mapped_char, pair[1]];
+        match new_pair_count.get_mut(&pair_b)  {
+            None => {
+                new_pair_count.insert(pair_b, old_count);
+            }
+            Some(count) => *count += old_count
+        }
+    }
+    new_pair_count
+}
+
+fn get_score(letter_count: &HashMap<char, usize>) -> usize {
+    if letter_count.is_empty() {
+        return 0;
+    }
+    let mut min = usize::MAX;
+    let mut max = usize::MIN;
+    for count in letter_count.values() {
+        min = std::cmp::min(min, *count);
+        max = std::cmp::max(max, *count);
+    }
+    max - min
+}
 
 fn main() {
     let now = Instant::now();
     let args: Vec<String> = env::args().collect();
-    let (mut polymer, pair_mapping) = read_input(if args.len() < 2 { "input_small" } else { args[1].as_str() });
-    println!("template is {} mapping is {:?}", char_vec_to_string(&polymer), pair_mapping);
-    for step in 0..10 {
-        polymer = process_pairs(&polymer, &pair_mapping);
-        println!("on step {} length is {}", step + 1, polymer.len());
+    let (polymer, pair_mapping) = read_input(if args.len() < 2 { "input_small" } else { args[1].as_str() });
+    let mut pair_count = count_pairs(&polymer, &pair_mapping);
+    let polymer_str: String = polymer.chars().collect();
+    let mut letter_count = count_letters(polymer_str.as_str());
+    for _ in 0..10 {
+        pair_count = process_pairs(pair_count, &mut letter_count, &pair_mapping);
     }
-    // let ((min_char, min_count), (max_char, max_count)) = min_max_occurrences(&polymer).expect("couldn't count values in polymer");
-    // println!("The min char was {}:{} the max char was {}:{}. Score is {}", min_char, min_count, max_char, max_count, max_count - min_count);
-    for step in 0..30 {
-        polymer = process_pairs(&polymer, &pair_mapping);
-        println!("on step {} length is {}", 10 + step + 1, polymer.len());
+    println!("score after 10 is {}", get_score(&letter_count));
+
+    for _ in 10..40 {
+        pair_count = process_pairs(pair_count, &mut letter_count, &pair_mapping);
     }
-    // let ((min_char, min_count), (max_char, max_count)) = min_max_occurrences(&polymer).expect("couldn't count values in polymer");
-    // println!("The min char was {}:{} the max char was {}:{}. Score is {}", min_char, min_count, max_char, max_count, max_count - min_count);
+    println!("score after 40 is {}", get_score(&letter_count));
+
     println!("Took a total of {} seconds", now.elapsed().as_secs_f64());
 }
