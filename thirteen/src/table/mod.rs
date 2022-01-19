@@ -1,4 +1,4 @@
-use std::slice::Chunks;
+use std::slice::{Chunks, Iter};
 
 pub enum TableCell<T> {
     Null,
@@ -9,7 +9,7 @@ impl<T: Copy + Clone> Clone for TableCell<T> {
     fn clone(&self) -> Self {
         match self {
             TableCell::Null => TableCell::Null,
-            TableCell::Some(v) => TableCell::Some(v.clone())
+            TableCell::Some(v) => TableCell::Some(*v)
         }
     }
 }
@@ -32,8 +32,8 @@ impl <T: Copy> Table<T> {
     // This is kinda pricey
     pub fn truncate_by_column(&mut self, col: usize) {
         let mut new_data_table = Vec::with_capacity(self.num_rows() * col);
-        for value in self.data.chunks(col).step_by(2) {
-            new_data_table.copy_from_slice(value);
+        for value in self.data.chunks(self.row_size) {
+            new_data_table.extend_from_slice(&value[0..col]);
         }
         self.row_size = col;
         self.data = new_data_table;
@@ -56,6 +56,10 @@ impl<T> Table<T> {
 
     pub fn row_iterator(&self) -> Chunks<'_, TableCell<T>> {
         self.data.chunks(self.row_size)
+    }
+
+    pub fn cell_iterator(&self) -> Iter<'_, TableCell<T>> {
+        self.data.iter()
     }
 
     //mmm cheap
@@ -136,23 +140,36 @@ pub enum UpdateStatus {
 }
 
 impl TableIterator {
-    pub fn new(start_row:usize, direction: IteratorDirection, iterator_type: TableIteratorType) -> TableIterator {
-        TableIterator {
-            current_row: start_row,
-            current_col: 0,
-            direction,
-            iterator_type
+    pub fn new(start_index:usize, direction: IteratorDirection, iterator_type: TableIteratorType) -> TableIterator {
+        match iterator_type {
+            TableIteratorType::Row => {
+                TableIterator {
+                    current_row: start_index,
+                    current_col: 0,
+                    direction,
+                    iterator_type
+                }
+            }
+            TableIteratorType::Column => {
+                TableIterator {
+                    current_row: 0,
+                    current_col: start_index,
+                    direction,
+                    iterator_type
+                }
+            }
         }
+
     }
 
     fn increment_column<T>(&mut self, table: &Table<T>) -> Option<usize> {
-        if self.current_row > table.num_rows() {
+        if self.current_row >= table.num_rows() {
             self.current_row = 0;
             match self.direction {
                 IteratorDirection::Forward => self.current_col += 1,
                 IteratorDirection::Backward => {
                     if self.current_col > 0 {
-                        self.current_col += 1;
+                        self.current_col -= 1;
                     } else {
                         return None
                     }
@@ -168,7 +185,7 @@ impl TableIterator {
     }
 
     fn increment_row<T>(&mut self,table: &Table<T>) -> Option<usize> {
-        if self.current_col > table.row_size {
+        if self.current_col >= table.row_size {
             self.current_col = 0;
             match self.direction {
                 IteratorDirection::Forward => self.current_row += 1,

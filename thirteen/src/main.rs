@@ -42,9 +42,23 @@ impl<T: Copy> Table<T> {
     }
 }
 
+impl<T> Table<T> {
+    fn count_non_null_cells(&self) -> usize {
+        let mut non_null:usize = 0;
+        for cell in self.cell_iterator() {
+            match cell {
+                TableCell::Null => {}
+                TableCell::Some(_) => non_null += 1
+            }
+        }
+        non_null
+    }
+}
+
 impl<T: Copy> Foldable for table::Table<T> {
 
     fn fold_x(&mut self, x: usize) {
+        let n_columns = self.num_columns();
         if x + 1 >= self.num_columns() {
             // Can't fold along a row that doesn't exist or the last row
             return;
@@ -86,7 +100,12 @@ impl Display for table::Table<bool> {
     }
 }
 
-fn read_input(filename: &str) -> Table<bool> {
+enum Fold {
+    X(usize),
+    Y(usize)
+}
+
+fn read_input(filename: &str) -> (Table<bool>, Vec<Fold>) {
     let file_contents = match std::fs::read_to_string(filename) {
         Ok(fc) => fc,
         Err(_) => panic!("Couldn't read the input")
@@ -94,9 +113,10 @@ fn read_input(filename: &str) -> Table<bool> {
     let mut points:Vec<(usize, usize)> = Vec::new();
     let mut max_x = 0;
     let mut max_y = 0;
-    for line in file_contents.lines() {
+    let mut line_iterator = file_contents.lines();
+    for line in line_iterator.by_ref() {
         if line.is_empty() {
-            break;
+            break; // next lines are the fold instructions
         }
         let parts: Vec<&str> = line.split(',').collect();
         if parts.len() != 2 {
@@ -112,12 +132,38 @@ fn read_input(filename: &str) -> Table<bool> {
     for (x, y) in points {
         table.set_cell(x,y,true);
     }
-    table
+    let mut instructions = Vec::new();
+    for line in line_iterator {
+        let line_parts: Vec<&str> = line.split('=').collect();
+        if line_parts.len() != 2 || line_parts[0].is_empty() || line_parts[1].is_empty() {
+            panic!("couldn't parse instruction");
+        }
+        let fold_index = line_parts[1].parse::<usize>().expect("Couldn't parse instruction index");
+        if line_parts[0].ends_with('x') {
+            instructions.push(Fold::X(fold_index));
+        } else if line_parts[0].ends_with('y') {
+            instructions.push(Fold::Y(fold_index));
+        } else {
+            panic!("Couldn't parse instruction dimension");
+        }
+    }
+    (table, instructions)
 }
 
 fn main() {
-    let mut table = read_input("input_small");
-    println!("Read input table \n{}", table);
-    table.fold_y(7);
-    println!("Fold on 7 \n{}", table);
+    let (mut table, instructions) = read_input("input");
+    let mut dots_after_first = 0;
+    let mut first = true;
+    for instruction in instructions {
+        match instruction {
+            Fold::X(i) => table.fold_x(i),
+            Fold::Y(i) => table.fold_y(i),
+        }
+        if first {
+            dots_after_first = table.count_non_null_cells();
+            first = false;
+        }
+
+    }
+    println!("After the first fold there are {} dots. After all the folds there are {} dots which looks like\n{}", dots_after_first, table.count_non_null_cells(), table);
 }
