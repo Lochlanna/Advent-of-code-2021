@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, BTreeSet};
+use std::collections::BinaryHeap;
 use std::env;
 use std::fmt::{Display, Formatter};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -16,34 +16,30 @@ enum Direction {
 
 #[derive(Debug, Clone, Copy)]
 struct Node {
-    previous: (usize, usize),
     distance: usize,
-    risk: u8
+    risk: u8,
+    searched: bool
 }
 
 impl Default for Node {
     fn default() -> Self {
-        Node {
-            previous: (0,0),
-            distance: usize::MAX,
-            risk: 0
-        }
+        Node::new(0)
     }
 }
 
 impl Node {
     fn new(risk:u8) -> Self {
         Node {
-            previous: (0,0),
             distance: usize::MAX,
-            risk
+            risk,
+            searched: false
         }
     }
     fn clone_with_risk(&self, risk:u8) -> Self {
         Node {
-            previous: self.previous,
             distance: self.distance,
-            risk
+            risk,
+            searched: false
         }
     }
 }
@@ -52,11 +48,11 @@ impl Node {
 struct SearchToken {
     x: usize,
     y: usize,
-    distance: usize
+    distance: u32
 }
 
 impl SearchToken {
-    pub fn new(x: usize, y: usize, distance: usize) -> Self {
+    pub fn new(x: usize, y: usize, distance: u32) -> Self {
         SearchToken { x, y, distance }
     }
 }
@@ -94,6 +90,7 @@ impl Display for Map {
     }
 }
 
+
 impl Map {
     fn new() -> Self {
         Map {
@@ -103,36 +100,33 @@ impl Map {
     fn insert_row(&mut self, row: Vec<Node>) {
         self.data.push(row);
     }
-    fn search(&mut self, start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> bool {
+    fn search(&mut self, start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> Option<usize> {
         let start_node = self.get_mut(start_x, start_y).expect("couldn't get the start node");
         start_node.distance = 0;
-        let mut path_q:BinaryHeap<SearchToken> = BinaryHeap::new();
+        let mut path_q:BinaryHeap<SearchToken> = BinaryHeap::with_capacity(10000);
         path_q.push(SearchToken::new(start_x, start_y, 0));
         while let Some(closest_token) = path_q.pop() {
-            if closest_token.x == end_x && closest_token.y == end_y {
-                println!("found it");
-                return true; // we have found the shortest path
+            let current_node = self.get_mut(closest_token.x, closest_token.y).expect("Couldn't find node for token");
+            if closest_token.x == end_x-1 && closest_token.y == end_y-1 {
+                return Some(current_node.distance); // we have found the shortest path
             }
+            current_node.searched = true;
+            let current_dist = current_node.distance;
             for direction in Direction::iter() {
                 match self.get_by_direction(closest_token.x, closest_token.y, direction) {
                     None => {} //nothing in this direction
                     Some((node, x, y)) => {
-                        if node.distance >= closest_token.distance + node.risk as usize {
-                            node.distance = closest_token.distance + node.risk as usize;
-                            node.previous = (closest_token.x, closest_token.y);
-                            let new_token = SearchToken::new(x,y,node.distance);
+                        if !node.searched && node.distance >= current_dist + node.risk as usize {
+                            node.distance = current_dist + node.risk as usize;
+                            let distance_to_end = (((x as i32 - end_x as i32).pow(2) + (y as i32 - end_y as i32).pow(2)) as f32).sqrt();
+                            let new_token = SearchToken::new(x,y,distance_to_end as u32 + node.distance as u32);
                             path_q.push(new_token);
                         }
-                        // else there is already a better way of getting here!
                     }
                 };
             }
         }
-        false
-    }
-
-    fn get(&self, x:usize, y: usize) -> Option<&Node> {
-        self.data.get(y).and_then(|row| row.get(x))
+        None
     }
 
     fn get_mut(&mut self, x:usize, y: usize) -> Option<&mut Node> {
@@ -218,48 +212,34 @@ fn read_input(filename:&str) -> Map {
     }
     map
 }
-
-fn get_path(map: Map, end_x: usize, end_y:usize) -> (usize, Vec<(usize, usize)>) {
-    let mut x = end_x-1;
-    let mut y = end_y-1;
-    let mut current_node = map.get(x, y).expect("couldn't get end node");
-    let distance = current_node.distance;
-    let mut path = vec![(x, y)];
-    while let (x, y) = current_node.previous {
-        current_node = map.get(x, y).expect("couldn't get the next node along path");
-        path.push((x,y));
-        if x == 0 && y == 0 {
-            break;
-        }
-
-    }
-    (distance, path)
-}
-
 fn problem_one() {
     let now = Instant::now();
     let args:Vec<String> = env::args().collect();
-    let mut map = read_input(if args.len() != 2 {"input_small"} else {args[1].as_str()});
+    let mut map = read_input(if args.len() != 2 {"input"} else {args[1].as_str()});
     let (end_x, end_y) = map.dimensions();
-    if !map.search(0,0, end_x, end_y) {
+
+    if let Some(distance) = map.search(0,0, end_x, end_y) {
+        println!("distance was {}", distance);
+    } else {
         println!("couldn't find a path");
     }
-    let (distance, path) = get_path(map, end_x, end_y);
     let dur = now.elapsed();
-    println!("distance was {} in {} steps time taken was {} seconds or {} microseconds", distance, path.len(), dur.as_secs_f64(), dur.as_micros());
+    println!("time taken was {} seconds or {} microseconds", dur.as_secs_f64(), dur.as_micros());
+
 }
 fn problem_two() {
     let now = Instant::now();
     let args:Vec<String> = env::args().collect();
-    let mut map= read_input(if args.len() != 2 {"input_small"} else {args[1].as_str()});
+    let mut map= read_input(if args.len() != 2 {"input"} else {args[1].as_str()});
     map.tile(5,5);
     let (end_x, end_y) = map.dimensions();
-    if !map.search(0,0, end_x, end_y) {
+    if let Some(distance) = map.search(0,0, end_x, end_y) {
+        println!("distance was {}", distance);
+    } else {
         println!("couldn't find a path");
     }
-    let (distance, path) = get_path(map, end_x, end_y);
     let dur = now.elapsed();
-    println!("distance was {} in {} steps time taken was {} seconds or {} microseconds", distance, path.len(), dur.as_secs_f64(), dur.as_micros());
+    println!("time taken was {} seconds or {} microseconds", dur.as_secs_f64(), dur.as_micros());
 }
 
 fn main() {
