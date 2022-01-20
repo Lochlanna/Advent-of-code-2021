@@ -3,6 +3,7 @@ use std::collections::BinaryHeap;
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::time::Instant;
+use ndarray::{Array2, ArrayView};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -71,7 +72,7 @@ impl Ord for SearchToken {
 }
 
 struct Map {
-    data: Vec<Vec<Node>>
+    data: ndarray::Array2<Node>
 }
 
 impl Display for Map {
@@ -79,8 +80,8 @@ impl Display for Map {
         if self.data.is_empty() {
             return f.write_str("");
         }
-        let mut map_str = String::with_capacity(self.data.len() * self.data.first().unwrap().len());
-        for row in &self.data {
+        let mut map_str = String::with_capacity(self.data.len() * self.data.ncols());
+        for row in self.data.rows() {
             for node in row {
                 map_str.push_str(node.risk.to_string().as_str());
             }
@@ -92,13 +93,10 @@ impl Display for Map {
 
 
 impl Map {
-    fn new() -> Self {
+    fn new(data: Vec<Node>, n_rows:usize, n_cols:usize) -> Self {
         Map {
-            data: vec![]
+            data: Array2::from_shape_vec((n_rows,n_cols), data).expect("Couldn't create array")
         }
-    }
-    fn insert_row(&mut self, row: Vec<Node>) {
-        self.data.push(row);
     }
     fn search(&mut self, start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> Option<usize> {
         let start_node = self.get_mut(start_x, start_y).expect("couldn't get the start node");
@@ -130,7 +128,7 @@ impl Map {
     }
 
     fn get_mut(&mut self, x:usize, y: usize) -> Option<&mut Node> {
-        self.data.get_mut(y).and_then(|row| row.get_mut(x))
+        self.data.get_mut((x,y))
     }
 
     fn get_by_direction(&mut self, current_x: usize, current_y: usize, direction:Direction) -> Option<(&mut Node, usize, usize)> {
@@ -159,13 +157,13 @@ impl Map {
         if self.data.is_empty() {
             return (0,0);
         }
-        (self.data.first().unwrap().len(), self.data.len())
+        (self.data.ncols(), self.data.nrows())
     }
 
     fn tile(&mut self, x:usize, y:usize) {
         let mut tiled_horizontal = Vec::with_capacity(self.data.len());
-        for row in &self.data {
-            let mut new_row = Vec::with_capacity(row.len() * x);
+        for row in self.data.rows() {
+            let mut new_row:Vec<Node> = Vec::with_capacity(row.len() * x);
             for i in 0..x {
                 for value in row {
                     let mut new_risk = value.risk as usize + i;
@@ -191,26 +189,32 @@ impl Map {
                 new_data.push(new_row);
             }
         }
-        self.data = new_data;
+        let num_rows = new_data.len();
+        let num_columns = new_data.first().expect("Couldn't get the first row").len();
+        let mut flattened  = Vec::with_capacity(num_rows*num_columns);
+        for row in new_data {
+            for node in row {
+                flattened.push(node);
+            }
+        }
+        self.data = Array2::from_shape_vec((num_rows, num_columns), flattened).expect("Couldn't create arr2 from flattened")
     }
 }
 
 fn read_input(filename:&str) -> Map {
     let file_contents = std::fs::read_to_string(filename).expect("couldn't read file");
-    let lines: Vec<&str> = file_contents.lines().collect();
-    if lines.is_empty() {
-        panic!("couldn't read input");
-    }
-    let mut map = Map::new();
+    let mut data = Vec::new();
+    let mut width = 0;
+    let mut row_count = 0;
     for line in file_contents.lines(){
-        let mut row = Vec::with_capacity(line.len());
         for c in line.chars() {
             let parsed = c.to_digit(10).expect("couldn't parse character to digit") as u8;
-            row.push(Node::new(parsed));
+            data.push(Node::new(parsed));
         }
-        map.insert_row(row);
+        width = line.len();
+        row_count+= 1;
     }
-    map
+    Map::new(data, row_count, width)
 }
 fn problem_one() {
     let now = Instant::now();
