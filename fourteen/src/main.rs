@@ -2,6 +2,29 @@ use std::collections::BTreeMap;
 use std::env;
 use std::time::Instant;
 
+struct PairCount{
+    data: Vec<usize>,
+    cursor:usize
+}
+
+impl PairCount {
+    fn new() -> Self {
+        PairCount{ data: vec![] }
+    }
+    fn add(&mut self, part_a:char, part_b:char, value:usize) {
+        let index = (part_a as usize + part_b as usize) - 'A' as usize;
+        if self.data.len() < index {
+            self.data.resize(index+1, 0)
+        }
+        self.data[index] += value;
+    }
+
+    fn get(&self, part_a:char, part_b:char) -> Option<&usize> {
+        let index = (part_a as usize + part_b as usize) - 'A' as usize;
+        self.data.get(index)
+    }
+}
+
 type PairMap = BTreeMap<char, BTreeMap<char, char>>;
 type PairCountMap = BTreeMap<char, BTreeMap<char, usize>>;
 
@@ -58,8 +81,8 @@ fn insert_into_pair_count_map(char_a: char, char_b: char, count: usize, pair_cou
     subtree.entry(char_b).and_modify(|c| *c += count).or_insert(count);
 }
 
-fn process_pairs(pair_count: PairCountMap, letter_count: &mut BTreeMap<char, usize>, pair_map: &PairMap) -> PairCountMap {
-    let mut new_pair_count: PairCountMap = BTreeMap::new();
+fn process_pairs(pair_count: PairCount, letter_count: &mut BTreeMap<char, usize>, pair_map: &PairMap) -> PairCount {
+    let mut new_pair_count: PairCount =  PairCount::new();
     for (char_a, sub_tree) in pair_count {
         for (char_b, count) in sub_tree {
             let mapped_char = *pair_map.get(&char_a).and_then(|st| st.get(&char_b)).expect("pair doesn't exist in mapping");
@@ -100,5 +123,5 @@ fn main() {
     }
     println!("score after 40 is {}", get_score(&letter_count));
     let dur = now.elapsed();
-    println!("Took a total of {} seconds which is {} millis and is {} nanos", dur.as_secs_f64(), dur.as_millis(), dur.as_nanos());
+    println!("Took a total of {} seconds which is {} millis and is {} nanos and is {} microseconds", dur.as_secs_f64(), dur.as_millis(), dur.as_nanos(), dur.as_micros());
 }
