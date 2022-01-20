@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::env;
 use std::fmt::{Display, Formatter};
+use std::ops::Add;
 use std::time::Instant;
 use ndarray::{Array2, ArrayView};
 use strum::IntoEnumIterator;
@@ -128,7 +129,7 @@ impl Map {
     }
 
     fn get_mut(&mut self, x:usize, y: usize) -> Option<&mut Node> {
-        self.data.get_mut((x,y))
+        self.data.get_mut((y,x))
     }
 
     fn get_by_direction(&mut self, current_x: usize, current_y: usize, direction:Direction) -> Option<(&mut Node, usize, usize)> {
@@ -161,43 +162,24 @@ impl Map {
     }
 
     fn tile(&mut self, x:usize, y:usize) {
-        let mut tiled_horizontal = Vec::with_capacity(self.data.len());
-        for row in self.data.rows() {
-            let mut new_row:Vec<Node> = Vec::with_capacity(row.len() * x);
-            for i in 0..x {
-                for value in row {
-                    let mut new_risk = value.risk as usize + i;
-                    if new_risk >= 10 {
-                        new_risk = (new_risk%10) + 1;
-                    }
-                    new_row.push(value.clone_with_risk(new_risk as u8));
+        let original_num_rows = self.data.nrows();
+        let original_num_columns = self.data.ncols();
+        let mut new_data = Vec::with_capacity(original_num_rows*y *original_num_columns*x);
+        for v in 0..(original_num_rows*y) {
+            for h in 0..original_num_columns*x {
+                let vertical_addition = v / original_num_rows; // int division rounds down
+                let horizontal_addition = h / original_num_columns;
+                let x = h % original_num_columns;
+                let y = v % original_num_rows;
+                let node = self.data.get((y,x)).expect("Couldn't get node from original data");
+                let mut new_risk = node.risk as usize + vertical_addition + horizontal_addition;
+                if new_risk >= 10 {
+                    new_risk = (new_risk%10) + 1;
                 }
-            }
-            tiled_horizontal.push(new_row);
-        }
-        let mut new_data = Vec::new();
-        for i in 0..y {
-            for row in &tiled_horizontal {
-                let mut new_row = Vec::new();
-                for node in row {
-                    let mut new_risk = node.risk as usize + i;
-                    if new_risk >= 10 {
-                        new_risk = (new_risk%10) + 1;
-                    }
-                    new_row.push(node.clone_with_risk(new_risk as u8));
-                }
-                new_data.push(new_row);
+                new_data.push(node.clone_with_risk(new_risk as u8));
             }
         }
-        let num_rows = new_data.len();
-        let num_columns = new_data.first().expect("Couldn't get the first row").len();
-        let mut flattened  = Vec::with_capacity(num_rows*num_columns);
-        for row in new_data {
-            for node in row {
-                flattened.push(node);
-            }
-        }
-        self.data = Array2::from_shape_vec((num_rows, num_columns), flattened).expect("Couldn't create arr2 from flattened")
+        self.data = Array2::from_shape_vec((original_num_rows*y, original_num_columns*x), new_data).expect("Couldn't create arr2 from flattened")
     }
 }
 
